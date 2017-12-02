@@ -1,0 +1,24 @@
+{
+  "name": "smarttree",
+  "version": "1.0.0",
+  "description": "Alexa powered SmartTree",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/istvandocsa/smarttree.git"
+  },
+  "keywords": [
+    "alexa",
+    "christmas",
+    "tree"
+  ],
+  "author": "Istvan Docsa",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/istvandocsa/smarttree/issues"
+  },
+  "homepage": "https://github.com/istvandocsa/smarttree#readme"
+}
