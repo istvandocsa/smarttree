@@ -1,5 +1,8 @@
 'use strict';
 
+const uuid = require("uuid");
+const request = require("request")
+
 /**
  * This sample demonstrates a smart home skill using the publicly available API on Amazon's Alexa platform.
  * For more information about developing smart home skills, see
@@ -9,65 +12,6 @@
  *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference
  */
 
-/**
- * Mock data for devices to be discovered
- *
- * For more information on the discovered appliance response please see
- *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#discoverappliancesresponse
- */
-const USER_DEVICES = [
-    {
-        // This id needs to be unique across all devices discovered for a given manufacturer
-        applianceId: 'unique-id-for-non-dimmable-bulb-specific-to-user1',
-        // Company name that produces and sells the smart home device
-        manufacturerName: 'SmartHome Product Company',
-        // Model name of the device
-        modelName: 'NON-DIMMABLE BULB MODEL ABC',
-        // Version number of the product
-        version: '1.0',
-        // The name given by the user in your application. Examples include 'Bedroom light' etc
-        friendlyName: 'Smart light',
-        // Should describe the device type and the company/cloud provider.
-        // This value will be shown in the Alexa app
-        friendlyDescription: 'Smart light bulb from SmartHome Product Company',
-        // Boolean value to represent the status of the device at time of discovery
-        isReachable: true,
-        // List the actions the device can support from our API
-        // The action should be the name of the actions listed here
-        // https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#discoverappliancesresponse
-        actions: ['turnOn', 'turnOff'],
-        // not used at this time
-        additionalApplianceDetails: {
-            extraDetail1: 'optionalDetailForSkillAdapterToReferenceThisDevice',
-            extraDetail2: 'There can be multiple entries',
-            extraDetail3: 'but they should only be used for reference purposes.',
-            extraDetail4: 'This is not a suitable place to maintain current device state',
-        },
-    }, {
-        // This id needs to be unique across all devices discovered for a given manufacturer
-        applianceId: 'unique-id-for-dimmable-bulb-specific-to-user1',
-        // Company name that produces and sells the smart home device
-        manufacturerName: 'SmartHome Product Company',
-        // Model name of the device
-        modelName: 'DIMMABLE BULB MODEL XYZ',
-        // Version number of the product
-        version: '1.0',
-        // The name given by the user in your application. Examples include 'Bedroom light' etc
-        friendlyName: 'Dimmable light',
-        // Should describe the device type and the company/cloud provider.
-        // This value will be shown in the Alexa app
-        friendlyDescription: 'Dimmable light bulb from SmartHome Product Company',
-        // Boolean value to represent the status of the device at time of discovery
-        isReachable: true,
-        // List the actions the device can support from our API
-        // The action should be the name of the actions listed here
-        // https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#discoverappliancesresponse
-        actions: ['turnOn', 'turnOff', 'setPercentage', 'incrementPercentage', 'decrementPercentage'],
-        // not used at this time
-        additionalApplianceDetails: {
-        },
-    },
-];
 
 /**
  * Utility functions
@@ -77,13 +21,21 @@ function log(title, msg) {
     console.log(`[${title}] ${msg}`);
 }
 
+function url(path) {
+    const env = process.env;
+    return env.ST_PROTOCOL + "://" + env.ST_HOST + ":" + env.PORT + "/smart_tree" + path;
+}
+
+function clientId() {
+    return process.env.ST_CLIENT_ID
+}
+
 /**
  * Generate a unique message ID
  *
- * TODO: UUID v4 is recommended as a message ID in production.
  */
 function generateMessageID() {
-    return '38A28869-DD5E-48CE-BBE5-A4DB78CECB28'; // Dummy
+    return uuid.v4();
 }
 
 /**
@@ -108,16 +60,33 @@ function generateResponse(name, payload) {
 /**
  * Mock functions to access device cloud.
  *
- * TODO: Pass a user access token and call cloud APIs in production.
  */
 
-function getDevicesFromPartnerCloud() {
-    /**
-     * For the purposes of this sample code, we will return:
-     * (1) Non-dimmable light bulb
-     * (2) Dimmable light bulb
-     */
-    return USER_DEVICES;
+function fetchDevice(callback) {
+
+    function handleDiscoverResponse(error, response, body) {
+        if(error) {
+            callback(new Error(error));
+            return;
+        }
+
+        const response = {
+            header: {
+                messageId: generateMessageID(),
+                name: 'DiscoverAppliancesResponse',
+                namespace: 'Alexa.ConnectedHome.Discovery',
+                payloadVersion: '2',
+            },
+            payload: {
+                discoveredAppliances: body,
+            }
+        };
+
+        callback(null, response);
+
+    }
+
+    request(url("/discover"), handleDiscoverResponse);
 }
 
 function isValidToken() {
@@ -219,27 +188,13 @@ function handleDiscovery(request, callback) {
      * For more information on a discovery response see
      *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#discoverappliancesresponse
      */
-    const response = {
-        header: {
-            messageId: generateMessageID(),
-            name: 'DiscoverAppliancesResponse',
-            namespace: 'Alexa.ConnectedHome.Discovery',
-            payloadVersion: '2',
-        },
-        payload: {
-            discoveredAppliances: getDevicesFromPartnerCloud(userAccessToken),
-        },
-    };
+    fetchDevice(callback)
 
     /**
      * Log the response. These messages will be stored in CloudWatch.
      */
     log('DEBUG', `Discovery Response: ${JSON.stringify(response)}`);
 
-    /**
-     * Return result with successful message.
-     */
-    callback(null, response);
 }
 
 /**
