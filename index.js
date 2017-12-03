@@ -21,9 +21,15 @@ function log(title, msg) {
     console.log(`[${title}] ${msg}`);
 }
 
-function url(path) {
+function destination(path) {
     const env = process.env;
-    return env.ST_PROTOCOL + "://" + env.ST_HOST + ":" + env.PORT + "/smart_tree" + path;
+    const url = env.ST_PROTOCOL + "://" + env.ST_HOST + ":" + env.ST_PORT + "/smart_tree" + path;
+    return {
+        url: url,
+        headers: {
+            'CLientId': env.ST_CLIENT_ID
+        }
+    }
 }
 
 function clientId() {
@@ -70,7 +76,7 @@ function fetchDevice(callback) {
             return;
         }
 
-        const response = {
+        const discoveryResponse = {
             header: {
                 messageId: generateMessageID(),
                 name: 'DiscoverAppliancesResponse',
@@ -78,15 +84,21 @@ function fetchDevice(callback) {
                 payloadVersion: '2',
             },
             payload: {
-                discoveredAppliances: body,
+                discoveredAppliances: [JSON.parse(body)],
             }
         };
 
-        callback(null, response);
+        /**
+         * Log the response. These messages will be stored in CloudWatch.
+         */
+        log('DEBUG', `Discovery Response: ${JSON.stringify(discoveryResponse)}`);
+
+        callback(null, discoveryResponse);
 
     }
 
-    request(url("/discover"), handleDiscoverResponse);
+    log('INFO', destination("/discover"))
+    request(destination("/discover"), handleDiscoverResponse);
 }
 
 function isValidToken() {
@@ -189,11 +201,6 @@ function handleDiscovery(request, callback) {
      *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#discoverappliancesresponse
      */
     fetchDevice(callback)
-
-    /**
-     * Log the response. These messages will be stored in CloudWatch.
-     */
-    log('DEBUG', `Discovery Response: ${JSON.stringify(response)}`);
 
 }
 
@@ -320,6 +327,7 @@ function handleControl(request, callback) {
  *  https://github.com/alexa/alexa-smarthome-validation
  */
 exports.handler = (request, context, callback) => {
+    log('INFO', request);
     switch (request.header.namespace) {
         /**
          * The namespace of 'Alexa.ConnectedHome.Discovery' indicates a request is being made to the Lambda for
