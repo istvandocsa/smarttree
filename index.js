@@ -77,14 +77,16 @@ function fetchDevice(callback) {
         }
 
         const discoveryResponse = {
-            header: {
-                messageId: generateMessageID(),
-                name: 'DiscoverAppliancesResponse',
-                namespace: 'Alexa.ConnectedHome.Discovery',
-                payloadVersion: '2',
-            },
-            payload: {
-                discoveredAppliances: [JSON.parse(body)],
+            event: {
+                header: {
+                    messageId: generateMessageID(),
+                    name: 'Discover.Response',
+                    namespace: 'Alexa.Discovery',
+                    payloadVersion: '3',
+                },
+                payload: {
+                    discoveredAppliances: [JSON.parse(body)],
+                }
             }
         };
 
@@ -181,14 +183,14 @@ function handleDiscovery(request, callback) {
     /**
      * Get the OAuth token from the request.
      */
-    const userAccessToken = request.payload.accessToken.trim();
+    const userAccessToken = request.directive.payload.scope.token.trim();
 
     /**
      * Generic stub for validating the token against your cloud service.
      * Replace isValidToken() function with your own validation.
      */
     if (!userAccessToken || !isValidToken(userAccessToken)) {
-        const errorMessage = `Discovery Request [${request.header.messageId}] failed. Invalid access token: ${userAccessToken}`;
+        const errorMessage = `Discovery Request [${request.directive.header.messageId}] failed. Invalid access token: ${userAccessToken}`;
         log('ERROR', errorMessage);
         callback(new Error(errorMessage));
     }
@@ -217,7 +219,7 @@ function handleControl(request, callback) {
     /**
      * Get the access token.
      */
-    const userAccessToken = request.payload.accessToken.trim();
+    const userAccessToken = request.directive.payload.token.trim();
 
     /**
      * Generic stub for validating the token against your cloud service.
@@ -227,7 +229,7 @@ function handleControl(request, callback) {
      *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#invalidaccesstokenerror
      */
     if (!userAccessToken || !isValidToken(userAccessToken)) {
-        log('ERROR', `Discovery Request [${request.header.messageId}] failed. Invalid access token: ${userAccessToken}`);
+        log('ERROR', `Discovery Request [${request.directive.header.messageId}] failed. Invalid access token: ${userAccessToken}`);
         callback(null, generateResponse('InvalidAccessTokenError', {}));
         return;
     }
@@ -235,18 +237,18 @@ function handleControl(request, callback) {
     /**
      * Grab the applianceId from the request.
      */
-    const applianceId = request.payload.appliance.applianceId;
+    // const applianceId = request.directive.payload.appliance.applianceId;
 
     /**
      * If the applianceId is missing, return UnexpectedInformationReceivedError
      *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#unexpectedinformationreceivederror
      */
-    if (!applianceId) {
-        log('ERROR', 'No applianceId provided in request');
-        const payload = { faultingParameter: `applianceId: ${applianceId}` };
-        callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
-        return;
-    }
+    // if (!applianceId) {
+    //     log('ERROR', 'No applianceId provided in request');
+    //     const payload = { faultingParameter: `applianceId: ${applianceId}` };
+    //     callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
+    //     return;
+    // }
 
     /**
      * At this point the applianceId and accessToken are present in the request.
@@ -265,58 +267,58 @@ function handleControl(request, callback) {
 
     let response;
 
-    switch (request.header.name) {
-        case 'TurnOnRequest':
-            response = turnOn(applianceId, userAccessToken);
-            break;
-
-        case 'TurnOffRequest':
-            response = turnOff(applianceId, userAccessToken);
-            break;
-
-        case 'SetPercentageRequest': {
-            const percentage = request.payload.percentageState.value;
-            if (!percentage) {
-                const payload = { faultingParameter: `percentageState: ${percentage}` };
-                callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
-                return;
-            }
-            response = setPercentage(applianceId, userAccessToken, percentage);
-            break;
-        }
-
-        case 'IncrementPercentageRequest': {
-            const delta = request.payload.deltaPercentage.value;
-            if (!delta) {
-                const payload = { faultingParameter: `deltaPercentage: ${delta}` };
-                callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
-                return;
-            }
-            response = incrementPercentage(applianceId, userAccessToken, delta);
-            break;
-        }
-
-        case 'DecrementPercentageRequest': {
-            const delta = request.payload.deltaPercentage.value;
-            if (!delta) {
-                const payload = { faultingParameter: `deltaPercentage: ${delta}` };
-                callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
-                return;
-            }
-            response = decrementPercentage(applianceId, userAccessToken, delta);
-            break;
-        }
-
-        default: {
-            log('ERROR', `No supported directive name: ${request.header.name}`);
-            callback(null, generateResponse('UnsupportedOperationError', {}));
-            return;
-        }
-    }
-
-    log('DEBUG', `Control Confirmation: ${JSON.stringify(response)}`);
-
-    callback(null, response);
+    // switch (request.directive.header.name) {
+    //     case 'TurnOnRequest':
+    //         response = turnOn(applianceId, userAccessToken);
+    //         break;
+    //
+    //     case 'TurnOffRequest':
+    //         response = turnOff(applianceId, userAccessToken);
+    //         break;
+    //
+    //     case 'SetPercentageRequest': {
+    //         const percentage = request.payload.percentageState.value;
+    //         if (!percentage) {
+    //             const payload = { faultingParameter: `percentageState: ${percentage}` };
+    //             callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
+    //             return;
+    //         }
+    //         response = setPercentage(applianceId, userAccessToken, percentage);
+    //         break;
+    //     }
+    //
+    //     case 'IncrementPercentageRequest': {
+    //         const delta = request.payload.deltaPercentage.value;
+    //         if (!delta) {
+    //             const payload = { faultingParameter: `deltaPercentage: ${delta}` };
+    //             callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
+    //             return;
+    //         }
+    //         response = incrementPercentage(applianceId, userAccessToken, delta);
+    //         break;
+    //     }
+    //
+    //     case 'DecrementPercentageRequest': {
+    //         const delta = request.payload.deltaPercentage.value;
+    //         if (!delta) {
+    //             const payload = { faultingParameter: `deltaPercentage: ${delta}` };
+    //             callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
+    //             return;
+    //         }
+    //         response = decrementPercentage(applianceId, userAccessToken, delta);
+    //         break;
+    //     }
+    //
+    //     default: {
+    //         log('ERROR', `No supported directive name: ${request.directive.header.name}`);
+    //         callback(null, generateResponse('UnsupportedOperationError', {}));
+    //         return;
+    //     }
+    // }
+    //
+    // log('DEBUG', `Control Confirmation: ${JSON.stringify(response)}`);
+    //
+    // callback(null, response);
 }
 
 /**
@@ -327,44 +329,22 @@ function handleControl(request, callback) {
  *  https://github.com/alexa/alexa-smarthome-validation
  */
 exports.handler = (request, context, callback) => {
-    log('INFO', request);
-    switch (request.header.namespace) {
-        /**
-         * The namespace of 'Alexa.ConnectedHome.Discovery' indicates a request is being made to the Lambda for
-         * discovering all appliances associated with the customer's appliance cloud account.
-         *
-         * For more information on device discovery, please see
-         *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#discovery-messages
-         */
-        case 'Alexa.ConnectedHome.Discovery':
+    log('DEBUG', request);
+    switch (request.directive.header.namespace) {
+
+        case 'Alexa.Discovery':
             handleDiscovery(request, callback);
             break;
 
-        /**
-         * The namespace of "Alexa.ConnectedHome.Control" indicates a request is being made to control devices such as
-         * a dimmable or non-dimmable bulb. The full list of Control events sent to your lambda are described below.
-         *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#payload
-         */
-        case 'Alexa.ConnectedHome.Control':
-            handleControl(request, callback);
-            break;
-
-        /**
-         * The namespace of "Alexa.ConnectedHome.Query" indicates a request is being made to query devices about
-         * information like temperature or lock state. The full list of Query events sent to your lambda are described below.
-         *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#payload
-         *
-         * TODO: In this sample, query handling is not implemented. Implement it to retrieve temperature or lock state.
-         */
-        // case 'Alexa.ConnectedHome.Query':
-        //     handleQuery(request, callback);
+        // case 'Alexa.ConnectedHome.Control':
+        //     handleControl(request, callback);
         //     break;
 
         /**
          * Received an unexpected message
          */
         default: {
-            const errorMessage = `No supported namespace: ${request.header.namespace}`;
+            const errorMessage = `No supported namespace: ${request.directive.header.namespace}`;
             log('ERROR', errorMessage);
             callback(new Error(errorMessage));
         }
