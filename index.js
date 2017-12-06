@@ -57,19 +57,13 @@ function generateResponse(name, payload) {
             messageId: generateMessageID(),
             name: name,
             namespace: 'Alexa.ConnectedHome.Control',
-            payloadVersion: '2',
+            payloadVersion: '3',
         },
         payload: payload,
     };
 }
 
-/**
- * Mock functions to access device cloud.
- *
- */
-
-function fetchDevice(callback) {
-
+function handleDiscovery(callback) {
     function handleDiscoverResponse(error, response, body) {
         if(error) {
             callback(new Error(error));
@@ -90,9 +84,6 @@ function fetchDevice(callback) {
             }
         };
 
-        /**
-         * Log the response. These messages will be stored in CloudWatch.
-         */
         log('DEBUG', `Discovery Response: ${JSON.stringify(discoveryResponse)}`);
 
         callback(null, discoveryResponse);
@@ -101,108 +92,6 @@ function fetchDevice(callback) {
 
     log('INFO', destination("/discover"))
     request(destination("/discover"), handleDiscoverResponse);
-}
-
-function isValidToken() {
-    /**
-     * Always returns true for sample code.
-     * You should update this method to your own access token validation.
-     */
-    return true;
-}
-
-function isDeviceOnline(applianceId) {
-    log('DEBUG', `isDeviceOnline (applianceId: ${applianceId})`);
-
-    /**
-     * Always returns true for sample code.
-     * You should update this method to your own validation.
-     */
-    return true;
-}
-
-function turnOn(applianceId) {
-    log('DEBUG', `turnOn (applianceId: ${applianceId})`);
-
-    // Call device cloud's API to turn on the device
-
-    return generateResponse('TurnOnConfirmation', {});
-}
-
-function turnOff(applianceId) {
-    log('DEBUG', `turnOff (applianceId: ${applianceId})`);
-
-    // Call device cloud's API to turn off the device
-
-    return generateResponse('TurnOffConfirmation', {});
-}
-
-function setPercentage(applianceId, percentage) {
-    log('DEBUG', `setPercentage (applianceId: ${applianceId}), percentage: ${percentage}`);
-
-    // Call device cloud's API to set percentage
-
-    return generateResponse('SetPercentageConfirmation', {});
-}
-
-function incrementPercentage(applianceId, delta) {
-    log('DEBUG', `incrementPercentage (applianceId: ${applianceId}), delta: ${delta}`);
-
-    // Call device cloud's API to set percentage delta
-
-    return generateResponse('IncrementPercentageConfirmation', {});
-}
-
-function decrementPercentage(applianceId, delta) {
-    log('DEBUG', `decrementPercentage (applianceId: ${applianceId}), delta: ${delta}`);
-
-    // Call device cloud's API to set percentage delta
-
-    return generateResponse('DecrementPercentageConfirmation', {});
-}
-
-/**
- * Main logic
- */
-
-/**
- * This function is invoked when we receive a "Discovery" message from Alexa Smart Home Skill.
- * We are expected to respond back with a list of appliances that we have discovered for a given customer.
- *
- * @param {Object} request - The full request object from the Alexa smart home service. This represents a DiscoverAppliancesRequest.
- *     https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#discoverappliancesrequest
- *
- * @param {function} callback - The callback object on which to succeed or fail the response.
- *     https://docs.aws.amazon.com/lambda/latest/dg/nodejs-prog-model-handler.html#nodejs-prog-model-handler-callback
- *     If successful, return <DiscoverAppliancesResponse>.
- *     https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#discoverappliancesresponse
- */
-function handleDiscovery(request, callback) {
-    log('DEBUG', `Discovery Request: ${JSON.stringify(request)}`);
-
-    /**
-     * Get the OAuth token from the request.
-     */
-    const userAccessToken = request.directive.payload.scope.token.trim();
-
-    /**
-     * Generic stub for validating the token against your cloud service.
-     * Replace isValidToken() function with your own validation.
-     */
-    if (!userAccessToken || !isValidToken(userAccessToken)) {
-        const errorMessage = `Discovery Request [${request.directive.header.messageId}] failed. Invalid access token: ${userAccessToken}`;
-        log('ERROR', errorMessage);
-        callback(new Error(errorMessage));
-    }
-
-    /**
-     * Assume access token is valid at this point.
-     * Retrieve list of devices from cloud based on token.
-     *
-     * For more information on a discovery response see
-     *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#discoverappliancesresponse
-     */
-    fetchDevice(callback)
 
 }
 
@@ -213,112 +102,39 @@ function handleDiscovery(request, callback) {
  * @param {Object} request - The full request object from the Alexa smart home service.
  * @param {function} callback - The callback object on which to succeed or fail the response.
  */
-function handleControl(request, callback) {
-    log('DEBUG', `Control Request: ${JSON.stringify(request)}`);
+function handlePower(context, req, callback) {
 
-    /**
-     * Get the access token.
-     */
-    const userAccessToken = request.directive.payload.token.trim();
+    function handlePowerResponse(error, response, body) {
+        if (error) {
+            callback(new Error(error));
+            return;
+        }
 
-    /**
-     * Generic stub for validating the token against your cloud service.
-     * Replace isValidToken() function with your own validation.
-     *
-     * If the token is invliad, return InvalidAccessTokenError
-     *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#invalidaccesstokenerror
-     */
-    if (!userAccessToken || !isValidToken(userAccessToken)) {
-        log('ERROR', `Discovery Request [${request.directive.header.messageId}] failed. Invalid access token: ${userAccessToken}`);
-        callback(null, generateResponse('InvalidAccessTokenError', {}));
-        return;
+        const discoveryResponse = {
+            context: context,
+            event: {
+                header: {
+                    messageId: generateMessageID(),
+                    name: 'Response',
+                    namespace: 'Alexa',
+                    payloadVersion: '3',
+                },
+                payload: {
+                    discoveredAppliances: [JSON.parse(body)],
+                }
+            }
+        };
+
+        /**
+         * Log the response. These messages will be stored in CloudWatch.
+         */
+        log('DEBUG', `Discovery Response: ${JSON.stringify(discoveryResponse)}`);
+
+        callback(null, discoveryResponse);
+
     }
-
-    /**
-     * Grab the applianceId from the request.
-     */
-    // const applianceId = request.directive.payload.appliance.applianceId;
-
-    /**
-     * If the applianceId is missing, return UnexpectedInformationReceivedError
-     *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#unexpectedinformationreceivederror
-     */
-    // if (!applianceId) {
-    //     log('ERROR', 'No applianceId provided in request');
-    //     const payload = { faultingParameter: `applianceId: ${applianceId}` };
-    //     callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
-    //     return;
-    // }
-
-    /**
-     * At this point the applianceId and accessToken are present in the request.
-     *
-     * Please review the full list of errors in the link below for different states that can be reported.
-     * If these apply to your device/cloud infrastructure, please add the checks and respond with
-     * accurate error messages. This will give the user the best experience and help diagnose issues with
-     * their devices, accounts, and environment
-     *  https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/smart-home-skill-api-reference#error-messages
-     */
-    if (!isDeviceOnline(applianceId, userAccessToken)) {
-        log('ERROR', `Device offline: ${applianceId}`);
-        callback(null, generateResponse('TargetOfflineError', {}));
-        return;
-    }
-
-    let response;
-
-    // switch (request.directive.header.name) {
-    //     case 'TurnOnRequest':
-    //         response = turnOn(applianceId, userAccessToken);
-    //         break;
-    //
-    //     case 'TurnOffRequest':
-    //         response = turnOff(applianceId, userAccessToken);
-    //         break;
-    //
-    //     case 'SetPercentageRequest': {
-    //         const percentage = request.payload.percentageState.value;
-    //         if (!percentage) {
-    //             const payload = { faultingParameter: `percentageState: ${percentage}` };
-    //             callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
-    //             return;
-    //         }
-    //         response = setPercentage(applianceId, userAccessToken, percentage);
-    //         break;
-    //     }
-    //
-    //     case 'IncrementPercentageRequest': {
-    //         const delta = request.payload.deltaPercentage.value;
-    //         if (!delta) {
-    //             const payload = { faultingParameter: `deltaPercentage: ${delta}` };
-    //             callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
-    //             return;
-    //         }
-    //         response = incrementPercentage(applianceId, userAccessToken, delta);
-    //         break;
-    //     }
-    //
-    //     case 'DecrementPercentageRequest': {
-    //         const delta = request.payload.deltaPercentage.value;
-    //         if (!delta) {
-    //             const payload = { faultingParameter: `deltaPercentage: ${delta}` };
-    //             callback(null, generateResponse('UnexpectedInformationReceivedError', payload));
-    //             return;
-    //         }
-    //         response = decrementPercentage(applianceId, userAccessToken, delta);
-    //         break;
-    //     }
-    //
-    //     default: {
-    //         log('ERROR', `No supported directive name: ${request.directive.header.name}`);
-    //         callback(null, generateResponse('UnsupportedOperationError', {}));
-    //         return;
-    //     }
-    // }
-    //
-    // log('DEBUG', `Control Confirmation: ${JSON.stringify(response)}`);
-    //
-    // callback(null, response);
+    log('INFO', destination("/discover"))
+    request(destination("/power/" + req.directive.header.name), handlePowerResponse);
 }
 
 /**
@@ -329,16 +145,17 @@ function handleControl(request, callback) {
  *  https://github.com/alexa/alexa-smarthome-validation
  */
 exports.handler = (request, context, callback) => {
-    log('DEBUG', request);
+    log('DEBUG', "Request: " + JSON.stringify(request));
+    log('DEBUG', "Context: " + JSON.stringify(context));
     switch (request.directive.header.namespace) {
 
         case 'Alexa.Discovery':
-            handleDiscovery(request, callback);
+            handleDiscovery(callback);
             break;
 
-        // case 'Alexa.ConnectedHome.Control':
-        //     handleControl(request, callback);
-        //     break;
+        case 'Alexa.PowerController':
+            handlePower(context, request, callback);
+            break;
 
         /**
          * Received an unexpected message
