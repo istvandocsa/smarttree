@@ -21,42 +21,34 @@ function log(title, msg) {
     console.log(`[${title}] ${msg}`);
 }
 
-function destination(path) {
+function destination(path, method = "GET", body) {
     const env = process.env;
     const url = env.ST_PROTOCOL + "://" + env.ST_HOST + ":" + env.ST_PORT + "/smart_tree" + path;
-    return {
+    const options = {
         url: url,
+        method: method,
         headers: {
             'CLientId': env.ST_CLIENT_ID
         }
+    };
+    if (body) {
+        options.body = JSON.stringify(body);
+        options.headers['Content-Type'] = "application/json";
     }
+    log('INFO', "destination: " + JSON.stringify(options));
+    return options;
 }
 
-function clientId() {
-    return process.env.ST_CLIENT_ID
-}
-
-/**
- * Generate a unique message ID
- *
- */
 function generateMessageID() {
     return uuid.v4();
 }
 
-/**
- * Generate a response message
- *
- * @param {string} name - Directive name
- * @param {Object} payload - Any special payload required for the response
- * @returns {Object} Response object
- */
-function generateResponse(name, payload) {
+function generateResponse(namespace, name, payload) {
     return {
         header: {
             messageId: generateMessageID(),
             name: name,
-            namespace: 'Alexa.ConnectedHome.Control',
+            namespace: namespace,
             payloadVersion: '3',
         },
         payload: payload,
@@ -79,71 +71,152 @@ function handleDiscovery(callback) {
                     payloadVersion: '3',
                 },
                 payload: {
-                    discoveredAppliances: [JSON.parse(body)],
+                    endpoints: [JSON.parse(body)],
                 }
             }
         };
 
         log('DEBUG', `Discovery Response: ${JSON.stringify(discoveryResponse)}`);
-
         callback(null, discoveryResponse);
 
     }
-
-    log('INFO', destination("/discover"))
     request(destination("/discover"), handleDiscoverResponse);
 
 }
 
-/**
- * A function to handle control events.
- * This is called when Alexa requests an action such as turning off an appliance.
- *
- * @param {Object} request - The full request object from the Alexa smart home service.
- * @param {function} callback - The callback object on which to succeed or fail the response.
- */
-function handlePower(context, req, callback) {
+function handlePower(req, callback) {
+
+    const powerState = req.directive.header.name.replace("Turn", "").toUpperCase()
 
     function handlePowerResponse(error, response, body) {
+        log("INFO", "powerResponse: " + JSON.stringify(response));
         if (error) {
             callback(new Error(error));
             return;
         }
 
-        const discoveryResponse = {
-            context: context,
+        const powerResponse = {
+            context: {
+                properties: [ {
+                    namespace: "Alexa.PowerController",
+                    name: "powerState",
+                    value: powerState,
+                    timeOfSample: new Date().toISOString(),
+                    uncertaintyInMilliseconds: 500
+                } ]
+            },
             event: {
                 header: {
                     messageId: generateMessageID(),
                     name: 'Response',
                     namespace: 'Alexa',
                     payloadVersion: '3',
+                    correlationToken: req.directive.header.correlationToken
                 },
-                payload: {
-                    discoveredAppliances: [JSON.parse(body)],
-                }
+                endpoint: req.directive.endpoint,
+                payload: {}
             }
         };
 
-        /**
-         * Log the response. These messages will be stored in CloudWatch.
-         */
-        log('DEBUG', `Discovery Response: ${JSON.stringify(discoveryResponse)}`);
+        log('DEBUG', `Power Response: ${JSON.stringify(powerResponse)}`);
 
-        callback(null, discoveryResponse);
+        callback(null, powerResponse);
 
     }
-    log('INFO', destination("/discover"))
-    request(destination("/power/" + req.directive.header.name), handlePowerResponse);
+    request(destination("/power/" + powerState, "POST"), handlePowerResponse);
 }
 
-/**
- * Main entry point.
- * Incoming events from Alexa service through Smart Home API are all handled by this function.
- *
- * It is recommended to validate the request and response with Alexa Smart Home Skill API Validation package.
- *  https://github.com/alexa/alexa-smarthome-validation
- */
+function handleBrightness(req, callback) {
+    if (!req.directive.header.name === "setBrightness") {
+        callback(new Error("Only setBrightness is supported at the moment."));
+        return;
+    }
+
+    const brightness = req.directive.payload.brightness
+
+    function handleBrightnessResponse(error, response, body) {
+        log("INFO", "brightnessResponse: " + JSON.stringify(response));
+        if (error) {
+            callback(new Error(error));
+            return;
+        }
+
+        const brightnessResponse = {
+            context: {
+                properties: [ {
+                    namespace: "Alexa.BrightnessController",
+                    name: "brightness",
+                    value: brightness,
+                    timeOfSample: new Date().toISOString(),
+                    uncertaintyInMilliseconds: 1000
+                } ]
+            },
+            event: {
+                header: {
+                    messageId: generateMessageID(),
+                    name: 'Response',
+                    namespace: 'Alexa',
+                    payloadVersion: '3',
+                    correlationToken: req.directive.header.correlationToken
+                },
+                endpoint: req.directive.endpoint,
+                payload: {}
+            }
+        };
+
+        log('DEBUG', `Brightness Response: ${JSON.stringify(brightnessResponse)}`);
+
+        callback(null, brightnessResponse);
+
+    }
+    request(destination("/brightness/" + brightness, "POST"), handleBrightnessResponse);
+}
+
+function handleColor(req, callback) {
+    if (!req.directive.header.name === "SetColor") {
+        callback(new Error("Only SetColor is supported."));
+        return;
+    }
+
+    const color = req.directive.payload.color;
+
+    function handleColorResponse(error, response, body) {
+        log("INFO", "colorResponse: " + JSON.stringify(response));
+        if (error) {
+            callback(new Error(error));
+            return;
+        }
+
+        const colorResponse = {
+            context: {
+                properties: [ {
+                    namespace: "Alexa.ColorController",
+                    name: "color",
+                    value: color,
+                    timeOfSample: new Date().toISOString(),
+                    uncertaintyInMilliseconds: 1000
+                } ]
+            },
+            event: {
+                header: {
+                    messageId: generateMessageID(),
+                    name: 'Response',
+                    namespace: 'Alexa',
+                    payloadVersion: '3',
+                    correlationToken: req.directive.header.correlationToken
+                },
+                endpoint: req.directive.endpoint,
+                payload: {}
+            }
+        };
+
+        log('DEBUG', `Color Response: ${JSON.stringify(colorResponse)}`);
+        callback(null, colorResponse);
+
+    }
+    request(destination("/color", "POST", color), handleColorResponse);
+}
+
 exports.handler = (request, context, callback) => {
     log('DEBUG', "Request: " + JSON.stringify(request));
     log('DEBUG', "Context: " + JSON.stringify(context));
@@ -154,12 +227,17 @@ exports.handler = (request, context, callback) => {
             break;
 
         case 'Alexa.PowerController':
-            handlePower(context, request, callback);
+            handlePower(request, callback);
             break;
 
-        /**
-         * Received an unexpected message
-         */
+        case 'Alexa.BrightnessController':
+            handleBrightness(request, callback);
+            break;
+
+        case 'Alexa.ColorController':
+            handleColor(request, callback);
+            break;
+
         default: {
             const errorMessage = `No supported namespace: ${request.directive.header.namespace}`;
             log('ERROR', errorMessage);
